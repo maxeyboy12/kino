@@ -1,0 +1,164 @@
+:root {
+    --background-color: #121212;
+    --pane-background: #1e1e1e;
+    --text-color: #e0e0e0;
+    --placeholder-color: #6b6b6b;
+    --header-color: #b3b3b3;
+    --accent-color: #9b59b6; /* A shade of purple */
+    --highlight-color: rgba(155, 89, 182, 0.15); /* A transparent purple for highlighting */
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.header {
+    text-align: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--pane-background);
+}
+
+.header h1 {
+    margin: 0;
+    font-weight: 700;
+}
+
+.header p {
+    margin: 0.25rem 0 0;
+    color: var(--header-color);
+    font-size: 0.9rem;
+}
+
+.editor-container {
+    display: flex;
+    flex-grow: 1;
+    height: calc(100vh - 70px); /* Adjust based on header height */
+}
+
+.pane {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.user-pane {
+    border-right: 1px solid var(--pane-background);
+}
+
+textarea, .ai-output-display {
+    width: 100%;
+    height: 100%;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-family: var(--font-family);
+    font-size: 16px;
+    line-height: 1.6;
+    outline: none;
+    resize: none;
+    padding: 0;
+    margin: 0;
+}
+
+textarea::placeholder,
+.ai-output-display[placeholder]:empty:before {
+    content: attr(placeholder);
+    color: var(--placeholder-color);
+    pointer-events: none;
+}
+
+/* Style for "locked" paragraphs in the AI pane */
+.locked-paragraph {
+    background-color: var(--highlight-color);
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin-bottom: 0.5em; /* Spacing between paragraphs */
+}
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+    background-color: var(--pane-background);
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid var(--placeholder-color);
+    width: 80%;
+    max-width: 900px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--placeholder-color);
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.modal-header h2 { margin: 0; }
+
+.close-button {
+    color: var(--header-color);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close-button:hover { color: #fff; }
+
+.modal-summary {
+    display: flex;
+    justify-content: space-around;
+    background: var(--background-color);
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-family: var(--font-mono);
+}
+.modal-summary p { margin: 0; }
+
+.log-container {
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.log-entry {
+    background: var(--background-color);
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+.log-entry-header {
+    padding: 10px;
+    border-bottom: 1px solid #2c2c2c;
+}
+.log-entry-header strong { color: var(--accent-color); }
+.log-entry-body {
+    padding: 15px;
+    white-space: pre-wrap; /* Allows text to wrap */
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #0d0d0d;
+}
