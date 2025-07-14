@@ -6,10 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const logModal = document.getElementById('logModal');
     const closeModalButton = document.querySelector('.close-button');
     const logContainer = document.getElementById('logContainer');
-    // CHANGED: New elements for model toggle and log download
     const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
-
 
     // --- CONFIGURATION & STATE ---
     const DEBOUNCE_MS = 250;
@@ -17,54 +15,49 @@ document.addEventListener('DOMContentLoaded', () => {
     let debounceTimer;
     let abortController = new AbortController();
     let apiCallLog = [];
-    // CHANGED: To hold data between stream completion and logging
     let currentCallData = {};
+    // --- CHANGED: This is now the single source of truth for locked text. ---
+    let lockedTextState = "";
 
     // --- EVENT LISTENERS ---
     userInput.addEventListener('input', handleUserInput);
-    // CHANGED: New listener for the 'accept' keystroke
     userInput.addEventListener('keydown', handleKeydown);
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
     });
-    // CHANGED: Listener for the download button
     downloadLogButton.addEventListener('click', downloadLog);
-
 
     // --- CORE FUNCTIONS ---
 
-    // CHANGED: New handler for keydown events, specifically for Ctrl+Enter
     function handleKeydown(e) {
-        // Check for Ctrl+Enter or Cmd+Enter
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault(); // Prevent default action (e.g., new line)
+            e.preventDefault();
             acceptAISuggestion();
         }
     }
 
-    // CHANGED: New function to implement the "accept" logic
     function acceptAISuggestion() {
-        // Reconstruct the full text from the AI pane
         const aiText = Array.from(aiOutput.children)
             .map(child => child.textContent)
             .join('\n\n');
 
         if (aiText.trim()) {
-            // Abort any pending requests
             abortController.abort();
             abortController = new AbortController();
             clearTimeout(debounceTimer);
 
-            // Update the user input with the AI's version
-            userInput.value = aiText + '\n\n';
+            const newFullText = aiText + '\n\n';
+            userInput.value = newFullText;
 
-            // Move cursor to the end
+            // --- CHANGED: Update the canonical lockedTextState ---
+            // This is now the ONLY place where locked text is officially set.
+            lockedTextState = aiText.trim();
+
             userInput.focus();
             userInput.selection.start = userInput.selection.end = userInput.value.length;
 
-            // Immediately trigger AI to update the view
             handleUserInput();
         }
     }
@@ -78,41 +71,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function triggerAI() {
         const fullText = userInput.value;
-        // CHANGED: The logic for splitting text is now simpler.
-        // Everything before the final double newline is locked.
-        const lastParagraphIndex = fullText.lastIndexOf('\n\n');
 
-        let lockedText = "";
-        let activeText = fullText;
+        // --- CHANGED: Logic is now much simpler. ---
+        // It no longer calculates locked text from the input string.
+        // It uses the canonical state variable.
+        const lockedText = lockedTextState;
 
-        if (lastParagraphIndex !== -1) {
-            lockedText = fullText.substring(0, lastParagraphIndex).trim();
-            activeText = fullText.substring(lastParagraphIndex).trim();
-        }
+        // Active text is anything typed *after* the officially locked text.
+        let activeText = fullText.startsWith(lockedText)
+            ? fullText.substring(lockedText.length).trim()
+            : fullText.trim(); // Fallback if user edits the locked part
 
-        renderLockedContent(lockedText); // Always render locked part first
+        renderLockedContent(lockedText); // Always render the official locked text first
 
-        if (!activeText.trim()) {
-            // If no active text, clear the active part of the AI display
+        if (!activeText) {
             const activeElement = aiOutput.querySelector('.active-paragraph');
             if (activeElement) activeElement.remove();
             return;
         }
+        // --- END OF CHANGES ---
 
-        // Get or create the element for the active AI suggestion
+
         let activeElement = aiOutput.querySelector('.active-paragraph');
         if (!activeElement) {
             activeElement = document.createElement('div');
             activeElement.className = 'active-paragraph';
             aiOutput.appendChild(activeElement);
         }
-        activeElement.textContent = '...'; // Show loading indicator
+        activeElement.textContent = '...';
 
         let fullResponse = "";
-        // CHANGED: Get selected model from the toggle
         const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
 
-        // CHANGED: Prepare data for logging
         currentCallData = {
             timestamp: new Date(),
             input: { lockedText, activeText },
@@ -130,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
             if (!response.body) throw new Error("Response body is missing.");
 
-            // CHANGED: Get system prompt from response headers for logging
             const systemPromptHeader = response.headers.get('X-System-Prompt');
             currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
 
@@ -151,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         try {
                             const json = JSON.parse(data);
-                            // CHANGED: Check for usage stats in the final chunk
                             if (json.usage) {
                                 currentCallData.usage = json.usage;
                             } else {
@@ -168,13 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // CHANGED: Log the complete call details after the stream finishes
             logApiCall(fullResponse);
 
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('Fetch aborted.');
-                // Don't show error message, just stop.
             } else {
                 console.error('Error calling AI:', error);
                 activeElement.textContent = "Error connecting to the assistant.";
@@ -195,17 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-    // --- LOGGING & MODAL FUNCTIONS ---
-
-    // CHANGED: Logging function now uses the temporarily stored call data
     function logApiCall(response) {
-        const callData = {
-            ...currentCallData,
-            output: response,
-        };
+        const callData = { ...currentCallData, output: response };
         apiCallLog.unshift(callData);
-        currentCallData = {}; // Clear for next call
+        currentCallData = {};
     }
 
     function openModal() {
@@ -217,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
         logModal.style.display = 'none';
     }
 
-    // CHANGED: Log rendering is completely overhauled for the new data structure
     function renderLog() {
         logContainer.innerHTML = '';
         const totalCalls = apiCallLog.length;
@@ -231,11 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apiCallLog.forEach((call, index) => {
             const entryDiv = document.createElement('div');
             entryDiv.className = 'log-entry';
-
-            const usageText = call.usage
-                ? `Prompt: ${call.usage.prompt_tokens} | Completion: ${call.usage.completion_tokens} | Total: ${call.usage.total_tokens}`
-                : 'N/A';
-
+            const usageText = call.usage ? `Prompt: ${call.usage.prompt_tokens} | Completion: ${call.usage.completion_tokens} | Total: ${call.usage.total_tokens}` : 'N/A';
             entryDiv.innerHTML = `
                 <div class="log-entry-header">
                     <span><strong>Call #${totalCalls - index}</strong> | ${call.timestamp.toLocaleTimeString()}</span>
@@ -248,13 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <pre>---LOCKED---\n${call.input.lockedText}\n---ACTIVE---\n${call.input.activeText}</pre>
                     <div class="log-section-title">AI Output Received</div>
                     <pre>${call.output}</pre>
-                </div>
-            `;
+                </div>`;
             logContainer.appendChild(entryDiv);
         });
     }
 
-    // CHANGED: New function to handle downloading the log
     function downloadLog() {
         if (apiCallLog.length === 0) {
             alert("No log data to download.");
@@ -268,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         a.download = `kinotype-log-${timestamp}.json`;
         document.body.appendChild(a);
-        a.click();
+a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
