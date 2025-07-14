@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userInput = document.getElementById('userInput');
     const aiOutput = document.getElementById('aiOutput');
     const logButton = document.getElementById('logButton');
+    const instructionText = document.getElementById('instructionText'); // New
     const logModal = document.getElementById('logModal');
     const closeModalButton = document.querySelector('.close-button');
     const logContainer = document.getElementById('logContainer');
@@ -16,21 +17,47 @@ document.addEventListener('DOMContentLoaded', () => {
     let abortController = new AbortController();
     let apiCallLog = [];
     let currentCallData = {};
-    // --- CHANGED: This is now the single source of truth for locked text. ---
     let lockedTextState = "";
+    // --- CHANGED: Device detection ---
+    const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+
+    // --- INITIALIZATION ---
+    setupUIForDevice();
+
 
     // --- EVENT LISTENERS ---
     userInput.addEventListener('input', handleUserInput);
-    userInput.addEventListener('keydown', handleKeydown);
+    downloadLogButton.addEventListener('click', downloadLog);
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
     });
-    downloadLogButton.addEventListener('click', downloadLog);
+    // --- CHANGED: Conditional event listeners based on device type ---
+    function setupUIForDevice() {
+        if (isMobile) {
+            instructionText.textContent = 'Tap a suggestion to accept it.';
+            // Use event delegation for tap-to-accept
+            aiOutput.addEventListener('click', (e) => {
+                if (e.target.classList.contains('active-paragraph-mobile')) {
+                    e.target.classList.add('tapped');
+                    // Remove animation class after it finishes
+                    e.target.addEventListener('animationend', () => {
+                        e.target.classList.remove('tapped');
+                    }, { once: true });
+
+                    acceptAISuggestion();
+                }
+            });
+        } else {
+            // Desktop uses keyboard shortcut
+            userInput.addEventListener('keydown', handleKeydown);
+        }
+    }
+
 
     // --- CORE FUNCTIONS ---
-
     function handleKeydown(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -50,9 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newFullText = aiText + '\n\n';
             userInput.value = newFullText;
-
-            // --- CHANGED: Update the canonical lockedTextState ---
-            // This is now the ONLY place where locked text is officially set.
             lockedTextState = aiText.trim();
 
             userInput.focus();
@@ -71,43 +95,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function triggerAI() {
         const fullText = userInput.value;
-
-        // --- CHANGED: Logic is now much simpler. ---
-        // It no longer calculates locked text from the input string.
-        // It uses the canonical state variable.
         const lockedText = lockedTextState;
-
-        // Active text is anything typed *after* the officially locked text.
         let activeText = fullText.startsWith(lockedText)
             ? fullText.substring(lockedText.length).trim()
-            : fullText.trim(); // Fallback if user edits the locked part
+            : fullText.trim();
 
-        renderLockedContent(lockedText); // Always render the official locked text first
+        renderLockedContent(lockedText);
 
         if (!activeText) {
-            const activeElement = aiOutput.querySelector('.active-paragraph');
+            const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
             if (activeElement) activeElement.remove();
             return;
         }
-        // --- END OF CHANGES ---
 
-
-        let activeElement = aiOutput.querySelector('.active-paragraph');
+        // --- CHANGED: Selectively find or create the active element ---
+        let activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
         if (!activeElement) {
             activeElement = document.createElement('div');
-            activeElement.className = 'active-paragraph';
+            // Apply class based on device
+            activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
             aiOutput.appendChild(activeElement);
         }
         activeElement.textContent = '...';
 
         let fullResponse = "";
         const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-
-        currentCallData = {
-            timestamp: new Date(),
-            input: { lockedText, activeText },
-            model: model,
-        };
+        currentCallData = { timestamp: new Date(), input: { lockedText, activeText }, model: model };
 
         try {
             const response = await fetch(WORKER_URL, {
@@ -122,14 +135,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const systemPromptHeader = response.headers.get('X-System-Prompt');
             currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
-
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
-
                 const chunk = decoder.decode(value, { stream: true });
                 const lines = chunk.split('\n\n');
 
@@ -137,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (line.startsWith('data: ')) {
                         const data = line.substring(6);
                         if (data.trim() === '[DONE]') continue;
-
                         try {
                             const json = JSON.parse(data);
                             if (json.usage) {
@@ -149,19 +159,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     activeElement.textContent = fullResponse;
                                 }
                             }
-                        } catch (e) {
-                            // Ignore JSON parsing errors for partial chunks
-                        }
+                        } catch (e) { /* Ignore parsing errors */ }
                     }
                 }
             }
-
             logApiCall(fullResponse);
-
         } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('Fetch aborted.');
-            } else {
+            if (error.name !== 'AbortError') {
                 console.error('Error calling AI:', error);
                 activeElement.textContent = "Error connecting to the assistant.";
             }
@@ -169,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderLockedContent(lockedContent) {
-        aiOutput.innerHTML = ''; // Clear everything
+        aiOutput.innerHTML = '';
         const paragraphs = lockedContent.split('\n\n');
         paragraphs.forEach(pText => {
             if (pText.trim()) {
@@ -181,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- LOGGING & MODAL FUNCTIONS (Unchanged) ---
     function logApiCall(response) {
         const callData = { ...currentCallData, output: response };
         apiCallLog.unshift(callData);
@@ -240,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         a.download = `kinotype-log-${timestamp}.json`;
         document.body.appendChild(a);
-a.click();
+        a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }

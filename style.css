@@ -21,7 +21,7 @@ body {
     overflow: hidden;
 }
 
-/* --- CHANGED: Header updated to use Flexbox for better alignment --- */
+/* --- Header --- */
 .header {
     display: flex;
     justify-content: space-between;
@@ -42,8 +42,6 @@ body {
 .header-content {
     text-align: center;
 }
-/* --- END HEADER CHANGES --- */
-
 
 .header h1 {
     margin: 0;
@@ -56,7 +54,6 @@ body {
     font-size: 0.9rem;
 }
 
-/* CHANGED: Style for the <kbd> tag */
 kbd {
     background-color: #333;
     border: 1px solid #555;
@@ -66,6 +63,7 @@ kbd {
     font-size: 0.8rem;
 }
 
+/* --- Editor & Panes --- */
 .editor-container {
     display: flex;
     flex-grow: 1;
@@ -104,6 +102,7 @@ textarea::placeholder,
     pointer-events: none;
 }
 
+/* --- Paragraph Styles --- */
 .locked-paragraph {
     background-color: var(--highlight-color);
     border-radius: 4px;
@@ -111,7 +110,29 @@ textarea::placeholder,
     margin-bottom: 1em;
 }
 
-/* --- CHANGED: Styles for the Model Toggle Switch --- */
+.active-paragraph {
+    /* Style for active paragraphs on desktop (currently plain) */
+}
+
+.active-paragraph-mobile {
+    background-color: var(--highlight-color);
+    border-radius: 4px;
+    padding: 0.5em 0.75em;
+    cursor: pointer;
+}
+
+.tapped {
+    animation: tap-feedback 0.3s ease-out;
+}
+
+@keyframes tap-feedback {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.98); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+
+/* --- Model Toggle Switch --- */
 .model-toggle {
     display: flex;
     align-items: center;
@@ -168,10 +189,9 @@ input:checked + .slider:before {
 .slider.round:before {
     border-radius: 50%;
 }
-/* --- END TOGGLE STYLES --- */
 
 
-/* --- MODAL STYLES (Partially Changed) --- */
+/* --- Modal & Logs --- */
 .modal {
     display: none;
     position: fixed;
@@ -217,7 +237,7 @@ input:checked + .slider:before {
 
 .modal-summary {
     display: flex;
-    justify-content: space-between; /* CHANGED: Space between for button */
+    justify-content: space-between;
     align-items: center;
     background: var(--background-color);
     padding: 10px;
@@ -240,7 +260,6 @@ input:checked + .slider:before {
 .header-button:hover {
     opacity: 0.9;
 }
-
 
 .log-container {
     overflow-y: auto;
