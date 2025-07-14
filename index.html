@@ -11,12 +11,23 @@
 </head>
 <body>
     <header class="header">
-        <button id="logButton" class="header-button">Session Log</button>
-        <div class="header-content">
-            <h1>kinotype</h1>
-            <p>End your sentence to enhance. Hit enter to save.</p>
+        <div class="header-left">
+            <button id="logButton" class="header-button">Logging</button>
         </div>
-        <div class="header-placeholder"></div>
+        <div class="header-content">
+            <h1>kino type</h1>
+            <p>Write whateva, then hit <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to accept the suggested.</p>
+        </div>
+        <div class="header-right">
+            <div class="model-toggle">
+                <span class="toggle-label">4o-mini</span>
+                <label class="switch">
+                    <input type="checkbox" id="modelSwitch">
+                    <span class="slider round"></span>
+                </label>
+                <span class="toggle-label">4o</span>
+            </div>
+        </div>
     </header>
 
     <main class="editor-container">
@@ -24,7 +35,7 @@
             <textarea id="userInput" placeholder="Type here..."></textarea>
         </div>
         <div class="pane ai-pane">
-            <div id="aiOutput" class="ai-output-display" placeholder="Real-time enhancements"></div>
+            <div id="aiOutput" class="ai-output-display" placeholder="Real-time suggestions"></div>
         </div>
     </main>
 
@@ -36,6 +47,7 @@
             </div>
             <div class="modal-summary">
                 <p>Total Calls: <span id="totalCalls">0</span></p>
+                <button id="downloadLogButton" class="header-button">Download Log</button>
             </div>
             <div id="logContainer" class="log-container">
                 </div>
