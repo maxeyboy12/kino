@@ -13,10 +13,20 @@
     <header class="header">
         <div class="header-left">
             <button id="logButton" class="header-button">Session Log</button>
+            <div class="dropdown">
+                <button id="quickActionsButton" class="header-button">Quick Edits</button>
+                <div id="quickActionsDropdown" class="dropdown-content">
+                    <a href="#" data-action="more formal">More Formal</a>
+                    <a href="#" data-action="more informal">More Informal</a>
+                    <a href="#" data-action="softer">Softer Tone</a>
+                    <a href="#" data-action="longer">Longer</a>
+                    <a href="#" data-action="shorter">Shorter</a>
+                </div>
+            </div>
         </div>
         <div class="header-content">
             <h1>kinotype</h1>
-            <p id="instructionText">Write, then press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to accept AI enhancement.</p>
+            <p id="instructionText">Write, then press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> when you like what you see.</p>
         </div>
         <div class="header-right">
             <div class="model-toggle">

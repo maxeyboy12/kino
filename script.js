@@ -3,12 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const userInput = document.getElementById('userInput');
     const aiOutput = document.getElementById('aiOutput');
     const logButton = document.getElementById('logButton');
-    const instructionText = document.getElementById('instructionText'); // New
+    const instructionText = document.getElementById('instructionText');
     const logModal = document.getElementById('logModal');
     const closeModalButton = document.querySelector('.close-button');
     const logContainer = document.getElementById('logContainer');
     const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
+    const quickActionsDropdown = document.getElementById('quickActionsDropdown'); // New
 
     // --- CONFIGURATION & STATE ---
     const DEBOUNCE_MS = 250;
@@ -18,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let apiCallLog = [];
     let currentCallData = {};
     let lockedTextState = "";
-    // --- CHANGED: Device detection ---
     const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
 
@@ -31,27 +31,24 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadLogButton.addEventListener('click', downloadLog);
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
+    quickActionsDropdown.addEventListener('click', handleQuickActionClick); // New
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
     });
-    // --- CHANGED: Conditional event listeners based on device type ---
+
     function setupUIForDevice() {
         if (isMobile) {
             instructionText.textContent = 'Tap a suggestion to accept it.';
-            // Use event delegation for tap-to-accept
             aiOutput.addEventListener('click', (e) => {
                 if (e.target.classList.contains('active-paragraph-mobile')) {
                     e.target.classList.add('tapped');
-                    // Remove animation class after it finishes
                     e.target.addEventListener('animationend', () => {
                         e.target.classList.remove('tapped');
                     }, { once: true });
-
                     acceptAISuggestion();
                 }
             });
         } else {
-            // Desktop uses keyboard shortcut
             userInput.addEventListener('keydown', handleKeydown);
         }
     }
@@ -108,11 +105,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // --- CHANGED: Selectively find or create the active element ---
         let activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
         if (!activeElement) {
             activeElement = document.createElement('div');
-            // Apply class based on device
             activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
             aiOutput.appendChild(activeElement);
         }
@@ -185,7 +180,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOGGING & MODAL FUNCTIONS (Unchanged) ---
+    // --- NEW QUICK ACTION HANDLER ---
+    async function handleQuickActionClick(e) {
+        e.preventDefault();
+        if (e.target.tagName !== 'A') return;
+
+        const action = e.target.dataset.action;
+        const fullText = userInput.value;
+
+        if (!fullText.trim()) {
+            alert("There's no text to rewrite.");
+            return;
+        }
+
+        abortController.abort();
+        abortController = new AbortController();
+        clearTimeout(debounceTimer);
+
+        aiOutput.innerHTML = `<div class="active-paragraph">Performing action: "${action}"...</div>`;
+        userInput.disabled = true;
+
+        try {
+            const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullText, action, model }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Worker error: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const { rewrittenText } = data;
+
+            userInput.value = rewrittenText;
+            lockedTextState = rewrittenText.trim();
+            
+            renderLockedContent(lockedTextState);
+
+        } catch (error) {
+            console.error('Quick Action failed:', error);
+            renderLockedContent(fullText); // Restore original text on error
+            aiOutput.innerHTML += `<div class="active-paragraph" style="color: #ff5555;">Error performing action. Please try again.</div>`;
+        } finally {
+            userInput.disabled = false;
+            userInput.focus();
+        }
+    }
+
+    // --- LOGGING & MODAL FUNCTIONS ---
     function logApiCall(response) {
         const callData = { ...currentCallData, output: response };
         apiCallLog.unshift(callData);
@@ -222,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="log-entry-body">
                     <div class="log-section-title">System Prompt Sent</div>
-                    <pre>${call.systemPrompt}</pre>
+                    <pre>${call.systemPrompt || 'N/A'}</pre>
                     <div class="log-section-title">User Input Sent</div>
                     <pre>---LOCKED---\n${call.input.lockedText}\n---ACTIVE---\n${call.input.activeText}</pre>
                     <div class="log-section-title">AI Output Received</div>
