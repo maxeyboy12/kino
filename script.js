@@ -120,8 +120,10 @@ document.addEventListener('DOMContentLoaded', () => {
         activeElement.dataset.actionType = 'append';
         activeElement.textContent = '...';
 
-        await streamToElement({ lockedText, activeText }, activeElement);
-    }
+    const bodyPayload = { lockedText: lockedTextState, activeText: activeText };
+    
+    await streamToElement(bodyPayload, activeElement);
+}
 
     async function handleQuickActionClick(e) {
         e.preventDefault();
