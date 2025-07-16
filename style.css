@@ -377,8 +377,8 @@ input:checked + .slider:before {
     background-color: var(--highlight-color);
 }
 
-.dropdown:hover .dropdown-content,
-.dropdown:focus-within .dropdown-content {
+
+.dropdown.is-active .dropdown-content {
     display: block;
 }
 /* --- Fixes for Quick Actions Dropdown on Mobile --- */
