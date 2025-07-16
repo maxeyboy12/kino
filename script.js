@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const logContainer = document.getElementById('logContainer');
     const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
-    const quickActionsDropdown = document.getElementById('quickActionsDropdown'); // New
+    const quickActionsDropdown = document.getElementById('quickActionsDropdown');
 
     // --- CONFIGURATION & STATE ---
-    const DEBOUNCE_MS = 250;
+    const DEBOUNCE_MS = 350; // Slightly increased for more complex logic
     const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev';
     let debounceTimer;
     let abortController = new AbortController();
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadLogButton.addEventListener('click', downloadLog);
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
-    quickActionsDropdown.addEventListener('click', handleQuickActionClick); // New
+    quickActionsDropdown.addEventListener('click', handleQuickActionClick);
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
     });
@@ -83,7 +83,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- REWRITTEN: Core Input and Unlocking Logic ---
     function handleUserInput() {
+        // 1. Immediately check if the user is editing a locked area.
+        const cursorPosition = userInput.selectionStart;
+        const lastLength = lockedTextState.length;
+
+        // If the cursor is inside the locked text and the text has changed
+        if (cursorPosition <= lastLength && userInput.value !== lockedTextState) {
+            // Find the beginning of the paragraph the user is editing.
+            // We search backwards from the cursor for a double newline.
+            const textBeforeCursor = userInput.value.substring(0, cursorPosition);
+            let paragraphStartIndex = textBeforeCursor.lastIndexOf('\n\n');
+
+            // If found, the start is after the double newline. If not, it's the beginning.
+            paragraphStartIndex = (paragraphStartIndex === -1) ? 0 : paragraphStartIndex + 2;
+            
+            // 2. Break the lock from that point forward.
+            lockedTextState = userInput.value.substring(0, paragraphStartIndex).trim();
+        }
+
+        // 3. Continue with the standard debounced AI trigger.
         abortController.abort();
         abortController = new AbortController();
         clearTimeout(debounceTimer);
@@ -91,13 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function triggerAI() {
+        // This function now has a simpler job. The lockedTextState is already correct.
         const fullText = userInput.value;
-        const lockedText = lockedTextState;
-        let activeText = fullText.startsWith(lockedText)
-            ? fullText.substring(lockedText.length).trim()
-            : fullText.trim();
+        const activeText = fullText.substring(lockedTextState.length).trim();
 
-        renderLockedContent(lockedText);
+        renderLockedContent(lockedTextState);
 
         if (!activeText) {
             const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
@@ -115,13 +133,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let fullResponse = "";
         const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-        currentCallData = { timestamp: new Date(), input: { lockedText, activeText }, model: model };
+        currentCallData = { timestamp: new Date(), input: { lockedText: lockedTextState, activeText }, model: model };
 
         try {
             const response = await fetch(WORKER_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lockedText, activeText, model }),
+                body: JSON.stringify({ lockedText: lockedTextState, activeText, model }),
                 signal: abortController.signal,
             });
 
@@ -180,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- NEW QUICK ACTION HANDLER ---
+    // --- QUICK ACTION HANDLER ---
     async function handleQuickActionClick(e) {
         e.preventDefault();
         if (e.target.tagName !== 'A') return;
@@ -222,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Quick Action failed:', error);
-            renderLockedContent(fullText); // Restore original text on error
+            renderLockedContent(fullText);
             aiOutput.innerHTML += `<div class="active-paragraph" style="color: #ff5555;">Error performing action. Please try again.</div>`;
         } finally {
             userInput.disabled = false;
