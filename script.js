@@ -63,36 +63,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 function acceptAISuggestion() {
-    // Find only the active, new suggestion
     const activeSuggestionEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-
-    // Make sure there's actually a suggestion to accept
     if (!activeSuggestionEl || !activeSuggestionEl.textContent.trim()) {
         return;
     }
 
     const suggestionText = activeSuggestionEl.textContent;
+    const actionType = activeSuggestionEl.dataset.actionType; // Check if it's 'rewrite' or 'append'
 
-    // Stop any streams that are still running
     abortController.abort();
     abortController = new AbortController();
     clearTimeout(debounceTimer);
 
-    // Correctly build the new text by combining the old locked state with the new suggestion
-    const newFullText = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+    let newFullText;
+    if (actionType === 'rewrite') {
+        // For Quick Edits, the suggestion IS the new text
+        newFullText = suggestionText;
+    } else {
+        // For typing, we append the suggestion to the locked text
+        newFullText = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+    }
 
-    // Update the user's text area and the locked state
     userInput.value = newFullText + '\n\n';
     lockedTextState = newFullText.trim();
 
-    // Re-render the AI pane with the now-locked text and remove the old active suggestion
     renderLockedContent(lockedTextState);
     const currentActiveEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-    if (currentActiveEl) {
-        currentActiveEl.remove();
-    }
+    if (currentActiveEl) currentActiveEl.remove();
 
-    // Place the cursor at the end of the text
     userInput.focus();
     userInput.setSelectionRange(userInput.value.length, userInput.value.length);
 }
@@ -124,80 +122,80 @@ function acceptAISuggestion() {
         debounceTimer = setTimeout(triggerAI, DEBOUNCE_MS);
     }
 
-    async function triggerAI() {
-        // This function now has a simpler job. The lockedTextState is already correct.
-        const fullText = userInput.value;
-        const activeText = fullText.substring(lockedTextState.length).trim();
+async function triggerAI() {
+    const fullText = userInput.value;
+    const activeText = fullText.substring(lockedTextState.length).trim();
 
-        renderLockedContent(lockedTextState);
+    renderLockedContent(lockedTextState);
 
-        if (!activeText) {
-            const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-            if (activeElement) activeElement.remove();
-            return;
-        }
+    if (!activeText) {
+        const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
+        if (activeElement) activeElement.remove();
+        return;
+    }
 
-        let activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-        if (!activeElement) {
-            activeElement = document.createElement('div');
-            activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
-            aiOutput.appendChild(activeElement);
-        }
-        activeElement.textContent = '...';
+    let activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
+    if (!activeElement) {
+        activeElement = document.createElement('div');
+        activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
+        aiOutput.appendChild(activeElement);
+    }
+    activeElement.dataset.actionType = 'append'; // CRITICAL: Mark this as an append
+    activeElement.textContent = '...';
 
-        let fullResponse = "";
-        const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-        currentCallData = { timestamp: new Date(), input: { lockedText: lockedTextState, activeText }, model: model };
+    let fullResponse = "";
+    const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+    currentCallData = { timestamp: new Date(), input: { lockedText: lockedTextState, activeText }, model: model };
 
-        try {
-            const response = await fetch(WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lockedText: lockedTextState, activeText, model }),
-                signal: abortController.signal,
-            });
+    try {
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lockedText: lockedTextState, activeText, model }),
+            signal: abortController.signal,
+        });
 
-            if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
-            if (!response.body) throw new Error("Response body is missing.");
+        if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
+        if (!response.body) throw new Error("Response body is missing.");
 
-            const systemPromptHeader = response.headers.get('X-System-Prompt');
-            currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
+        const systemPromptHeader = response.headers.get('X-System-Prompt');
+        currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n\n');
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n\n');
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.substring(6);
-                        if (data.trim() === '[DONE]') continue;
-                        try {
-                            const json = JSON.parse(data);
-                            if (json.usage) {
-                                currentCallData.usage = json.usage;
-                            } else {
-                                const token = json.choices[0]?.delta?.content || "";
-                                if (token) {
-                                    fullResponse += token;
-                                    activeElement.textContent = fullResponse;
-                                }
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.substring(6);
+                    if (data.trim() === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.usage) {
+                            currentCallData.usage = json.usage;
+                        } else {
+                            const token = json.choices[0]?.delta?.content || "";
+                            if (token) {
+                                fullResponse += token;
+                                activeElement.textContent = fullResponse;
                             }
-                        } catch (e) { /* Ignore parsing errors */ }
-                    }
+                        }
+                    } catch (e) { /* Ignore parsing errors */ }
                 }
             }
-            logApiCall(fullResponse);
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error('Error calling AI:', error);
-                activeElement.textContent = "Error connecting to the assistant.";
-            }
+        }
+        logApiCall(fullResponse);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error calling AI:', error);
+            activeElement.textContent = "Error connecting to the assistant.";
         }
     }
+}
 
     function renderLockedContent(lockedContent) {
         aiOutput.innerHTML = '';
@@ -213,54 +211,87 @@ function acceptAISuggestion() {
     }
 
     // --- QUICK ACTION HANDLER ---
-    async function handleQuickActionClick(e) {
-        e.preventDefault();
-        if (e.target.tagName !== 'A') return;
+async function handleQuickActionClick(e) {
+    e.preventDefault();
+    if (e.target.tagName !== 'A') return;
 
-        const action = e.target.dataset.action;
-        const fullText = userInput.value;
+    const action = e.target.dataset.action;
+    const fullText = userInput.value;
 
-        if (!fullText.trim()) {
-            alert("There's no text to rewrite.");
-            return;
-        }
+    if (!fullText.trim()) {
+        alert("There's no text to perform an action on.");
+        return;
+    }
 
-        abortController.abort();
-        abortController = new AbortController();
-        clearTimeout(debounceTimer);
+    abortController.abort();
+    abortController = new AbortController();
+    clearTimeout(debounceTimer);
 
-        aiOutput.innerHTML = `<div class="active-paragraph">Performing action: "${action}"...</div>`;
-        userInput.disabled = true;
+    // Set the entire text as "locked" to provide context for the rewrite
+    lockedTextState = fullText.trim();
+    renderLockedContent(lockedTextState);
 
-        try {
-            const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-            const response = await fetch(WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullText, action, model }),
-            });
+    // Create a new active paragraph for the suggestion
+    let activeElement = document.createElement('div');
+    activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
+    activeElement.dataset.actionType = 'rewrite'; // CRITICAL: Mark this as a rewrite
+    aiOutput.appendChild(activeElement);
+    activeElement.textContent = `Rewriting to be "${action}"...`;
 
-            if (!response.ok) {
-                throw new Error(`Worker error: ${response.statusText}`);
+    let fullResponse = "";
+    const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+    currentCallData = { timestamp: new Date(), input: { fullText, action }, model: model };
+
+    try {
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullText, action, model }),
+            signal: abortController.signal,
+        });
+
+        if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
+        if (!response.body) throw new Error("Response body is missing.");
+
+        const systemPromptHeader = response.headers.get('X-System-Prompt');
+        currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        // Standard streaming logic
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.substring(6);
+                    if (data.trim() === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.usage) {
+                            currentCallData.usage = json.usage;
+                        } else {
+                            const token = json.choices[0]?.delta?.content || "";
+                            if (token) {
+                                fullResponse += token;
+                                activeElement.textContent = fullResponse;
+                            }
+                        }
+                    } catch (e) { /* Ignore parsing errors */ }
+                }
             }
-
-            const data = await response.json();
-            const { rewrittenText } = data;
-
-            userInput.value = rewrittenText;
-            lockedTextState = rewrittenText.trim();
-            
-            renderLockedContent(lockedTextState);
-
-        } catch (error) {
+        }
+        logApiCall(fullResponse);
+    } catch (error) {
+        if (error.name !== 'AbortError') {
             console.error('Quick Action failed:', error);
-            renderLockedContent(fullText);
-            aiOutput.innerHTML += `<div class="active-paragraph" style="color: #ff5555;">Error performing action. Please try again.</div>`;
-        } finally {
-            userInput.disabled = false;
-            userInput.focus();
+            activeElement.textContent = "Error performing action. Please try again.";
         }
     }
+}
 
     // --- LOGGING & MODAL FUNCTIONS ---
     function logApiCall(response) {
