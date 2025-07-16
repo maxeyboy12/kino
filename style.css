@@ -381,3 +381,23 @@ input:checked + .slider:before {
 .dropdown:focus-within .dropdown-content {
     display: block;
 }
+/* --- Fixes for Quick Actions Dropdown on Mobile --- */
+    .header-left {
+        width: 100%;
+        justify-content: space-evenly;
+    }
+    
+    .dropdown .header-button {
+        width: 100%; /* Make the button easier to tap */
+    }
+
+    .dropdown-content {
+        position: absolute;
+        /* Position it relative to the screen, not the button */
+        left: 0;
+        right: 0;
+        width: 95%; /* Full width with a little margin */
+        margin: 10px auto;
+        min-width: 0;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); /* Stronger shadow for pop */
+    }

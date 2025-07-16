@@ -62,26 +62,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function acceptAISuggestion() {
-        const aiText = Array.from(aiOutput.children)
-            .map(child => child.textContent)
-            .join('\n\n');
+function acceptAISuggestion() {
+    // Find only the active, new suggestion
+    const activeSuggestionEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
 
-        if (aiText.trim()) {
-            abortController.abort();
-            abortController = new AbortController();
-            clearTimeout(debounceTimer);
-
-            const newFullText = aiText + '\n\n';
-            userInput.value = newFullText;
-            lockedTextState = aiText.trim();
-
-            userInput.focus();
-            userInput.selection.start = userInput.selection.end = userInput.value.length;
-
-            handleUserInput();
-        }
+    // Make sure there's actually a suggestion to accept
+    if (!activeSuggestionEl || !activeSuggestionEl.textContent.trim()) {
+        return;
     }
+
+    const suggestionText = activeSuggestionEl.textContent;
+
+    // Stop any streams that are still running
+    abortController.abort();
+    abortController = new AbortController();
+    clearTimeout(debounceTimer);
+
+    // Correctly build the new text by combining the old locked state with the new suggestion
+    const newFullText = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+
+    // Update the user's text area and the locked state
+    userInput.value = newFullText + '\n\n';
+    lockedTextState = newFullText.trim();
+
+    // Re-render the AI pane with the now-locked text and remove the old active suggestion
+    renderLockedContent(lockedTextState);
+    const currentActiveEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
+    if (currentActiveEl) {
+        currentActiveEl.remove();
+    }
+
+    // Place the cursor at the end of the text
+    userInput.focus();
+    userInput.setSelectionRange(userInput.value.length, userInput.value.length);
+}
 
     // --- REWRITTEN: Core Input and Unlocking Logic ---
     function handleUserInput() {
