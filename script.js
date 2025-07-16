@@ -31,18 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
     
-    // Listeners for the new JS-powered dropdown
-    quickActionsButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        quickActionsDropdown.parentElement.classList.toggle('is-active');
-    });
     quickActionsDropdown.addEventListener('click', handleQuickActionClick);
 
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
-        if (!event.target.closest('.dropdown')) {
-            quickActionsDropdown.parentElement.classList.remove('is-active');
-        }
+
     });
 
     function setupUIForDevice() {
@@ -86,8 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         userInput.value = newFullText + '\n\n';
-        lockedTextState = newFullText.trim();
-        renderLockedContent(lockedTextState);
         const currentActiveEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
         if (currentActiveEl) currentActiveEl.remove();
 
@@ -135,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleQuickActionClick(e) {
         e.preventDefault();
         if (e.target.tagName !== 'A') return;
-        quickActionsDropdown.parentElement.classList.remove('is-active');
 
         const action = e.target.dataset.action;
         const fullText = userInput.value;
