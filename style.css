@@ -354,15 +354,14 @@ input:checked + .slider:before {
 }
 
 .dropdown-content {
-    display: none;
-    position: absolute;
+    display: none; /* Hidden by default */
+    position: absolute; /* Positioned relative to the .dropdown container */
     background-color: var(--pane-background);
     min-width: 160px;
-    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-    z-index: 101; /* Ensure it's above other elements */
-    border-radius: 5px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.3);
     border: 1px solid var(--placeholder-color);
-    overflow: hidden;
+    border-radius: 5px;
+    z-index: 101; /* Make sure it appears above other content */
 }
 
 .dropdown-content a {
