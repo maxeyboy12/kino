@@ -110,7 +110,7 @@ textarea::placeholder,
 }
 
 .active-paragraph {
-    /* Style for active paragraphs on desktop (currently plain) */
+    white-space: pre-wrap;
 }
 
 .active-paragraph-mobile {
@@ -118,6 +118,7 @@ textarea::placeholder,
     border-radius: 4px;
     padding: 0.5em 0.75em;
     cursor: pointer;
+    white-space: pre-wrap;
 }
 
 .tapped {
