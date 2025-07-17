@@ -137,13 +137,19 @@ textarea::placeholder,
     pointer-events: none;
 }
 
-/* --- Paragraph Styles are unchanged --- */
-.locked-paragraph, .active-paragraph, .active-paragraph-mobile {
-    /* ... same styles as before ... */
+/* --- Paragraph Styles --- */
+.locked-paragraph {
+    background-color: var(--highlight-color);
+    border-radius: 4px;
+    padding: 0.5em 0.75em;
+    margin-bottom: 1em;
 }
 
+.active-paragraph, .active-paragraph-mobile {
+    white-space: pre-wrap;
+}
 
-/* --- Model Toggle Switch (These rules must always apply) --- */
+/* --- Model Toggle Switch --- */
 .model-toggle {
     display: flex;
     align-items: center;
@@ -194,7 +200,7 @@ input:checked + .slider:before {
     transform: translateX(22px);
 }
 
-/* --- Dropdown Menu (These rules must also always apply) --- */
+/* --- Dropdown Menu --- */
 .dropdown {
     position: relative;
     display: inline-block;
@@ -213,7 +219,6 @@ input:checked + .slider:before {
     z-index: 101;
 }
 
-/* This is the hover trigger for desktop */
 .dropdown:hover .dropdown-content {
     display: block;
 }
@@ -228,6 +233,108 @@ input:checked + .slider:before {
 
 .dropdown-content a:hover {
     background-color: var(--highlight-color);
+}
+
+/* --- Modal & Logs --- */
+.modal {
+    display: none; /* This hides it by default */
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+    background-color: var(--pane-background);
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid var(--placeholder-color);
+    width: 80%;
+    max-width: 900px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--placeholder-color);
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.modal-header h2 { margin: 0; }
+
+.close-button {
+    color: var(--header-color);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close-button:hover { color: #fff; }
+
+.modal-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--background-color);
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-family: var(--font-mono);
+}
+.modal-summary p { margin: 0; }
+
+.log-container {
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.log-entry {
+    background: var(--background-color);
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+.log-entry-header {
+    padding: 10px;
+    border-bottom: 1px solid #2c2c2c;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap; 
+    gap: 10px;
+}
+.log-entry-header strong { color: var(--accent-color); }
+.log-entry-body {
+    padding: 15px;
+    background: #0d0d0d;
+}
+.log-entry-body pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #1a1a1a;
+    padding: 10px;
+    border-radius: 4px;
+}
+.log-section-title {
+    color: var(--header-color);
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+.log-section-title:first-child {
+    margin-top: 0;
 }
 
 
@@ -262,14 +369,12 @@ input:checked + .slider:before {
         justify-content: flex-end; /* Keep toggle to the right */
     }
 
-    /* This forces the dropdown to work on tap instead of hover */
     .dropdown:focus-within .dropdown-content {
         display: block;
     }
 
     .editor-container {
         flex-direction: row;
-        /* Calculate height based on a flexible header */
         height: calc(100vh - (60px + 1.5rem)); /* Approximate header height + padding */
     }
 
@@ -277,5 +382,11 @@ input:checked + .slider:before {
         width: 50%;
         height: 100%;
         border-bottom: none;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 2.5% auto;
+        max-height: 90vh;
     }
 }

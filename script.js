@@ -151,94 +151,107 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handles "Quick Edit" actions like 'make formal' or 'make shorter'.
      * @param {Event} e
      */
-    async function handleQuickActionClick(e) {
-        e.preventDefault();
-        if (e.target.tagName !== 'A') return;
+async function handleQuickActionClick(e) {
+    e.preventDefault();
+    if (e.target.tagName !== 'A') return;
 
-        const action = e.target.dataset.action;
-        const fullText = userInput.value.trim();
-        if (!fullText) {
-            alert("There's no text to perform an action on.");
-            return;
-        }
-
-        abortController.abort();
-        clearTimeout(debounceTimer);
-
-        // For a rewrite, the entire text becomes the context, and the AI pane should be cleared
-        // to show the full rewritten suggestion.
-        renderLockedContent("");
-        
-        let activeElement = document.createElement('div');
-        activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
-        aiOutput.appendChild(activeElement);
-        activeElement.textContent = `Rewriting to be "${action}"...`;
-        
-        // This payload tells the backend this is a full rewrite action
-        const bodyPayload = { fullText, action };
-        await streamToElement(bodyPayload, activeElement);
+    // This closes the dropdown on mobile after a selection is made
+    if (isMobile) {
+        e.target.closest('.dropdown').blur();
     }
+
+    const action = e.target.dataset.action;
+    const fullText = userInput.value.trim();
+    if (!fullText) {
+        alert("There's no text to perform an action on.");
+        return;
+    }
+
+    abortController.abort();
+    clearTimeout(debounceTimer);
+
+    renderLockedContent("");
+    
+    let activeElement = document.createElement('div');
+    activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
+    aiOutput.appendChild(activeElement);
+    activeElement.textContent = `Rewriting to be "${action}"...`;
+    
+    const bodyPayload = { fullText, action };
+    const rewrittenText = await streamToElement(bodyPayload, activeElement);
+
+    // If the stream was successful, apply the result directly.
+    if (rewrittenText !== null) {
+        // Update the user input with the new text
+        userInput.value = rewrittenText;
+        // Lock it in as the new state
+        lockInCurrentText();
+    }
+}
 
     /**
      * Streams the OpenAI response to a target UI element.
      * @param {object} bodyPayload - The data to send to the worker.
      * @param {HTMLElement} targetElement - The element to stream the response into.
      */
-    async function streamToElement(bodyPayload, targetElement) {
-        const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-        currentCallData = { timestamp: new Date(), input: bodyPayload, model };
+// Find and REPLACE the entire streamToElement function with this new version.
+async function streamToElement(bodyPayload, targetElement) {
+    const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+    currentCallData = { timestamp: new Date(), input: bodyPayload, model };
 
-        let fullResponse = "";
-        try {
-            const response = await fetch(WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...bodyPayload, model }),
-                signal: abortController.signal,
-            });
+    let fullResponse = "";
+    try {
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...bodyPayload, model }),
+            signal: abortController.signal,
+        });
 
-            if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
-            if (!response.body) throw new Error("Response body is missing.");
+        if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
+        if (!response.body) throw new Error("Response body is missing.");
 
-            const systemPromptHeader = response.headers.get('X-System-Prompt');
-            currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
+        const systemPromptHeader = response.headers.get('X-System-Prompt');
+        currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-            targetElement.textContent = ""; // Clear "..." before streaming
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n\n');
+        targetElement.textContent = ""; // Clear "..." before streaming
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n\n');
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.substring(6);
-                        if (data.trim() === '[DONE]') continue;
-                        try {
-                            const json = JSON.parse(data);
-                            if (json.usage) {
-                                currentCallData.usage = json.usage;
-                            } else {
-                                const token = json.choices[0]?.delta?.content || "";
-                                if (token) {
-                                    fullResponse += token;
-                                    targetElement.textContent = fullResponse;
-                                }
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.substring(6);
+                    if (data.trim() === '[DONE]') continue;
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.usage) {
+                            currentCallData.usage = json.usage;
+                        } else {
+                            const token = json.choices[0]?.delta?.content || "";
+                            if (token) {
+                                fullResponse += token;
+                                targetElement.textContent = fullResponse;
                             }
-                        } catch (e) { console.error("Error parsing stream data:", e); }
-                    }
+                        }
+                    } catch (e) { console.error("Error parsing stream data:", e); }
                 }
             }
-            logApiCall(fullResponse);
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error('Streaming failed:', error);
-                targetElement.textContent = "Error connecting to the assistant.";
-            }
         }
+        logApiCall(fullResponse);
+        return fullResponse; // <-- ADD THIS LINE to return the final text
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Streaming failed:', error);
+            targetElement.textContent = "Error connecting to the assistant.";
+        }
+        return null; // <-- ADD THIS LINE to return null on error
     }
+}
 
     /**
      * Renders the locked paragraphs in the AI output pane.
