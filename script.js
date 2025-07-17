@@ -181,13 +181,12 @@ async function handleQuickActionClick(e) {
     const bodyPayload = { fullText, action };
     const rewrittenText = await streamToElement(bodyPayload, activeElement);
 
-    // If the stream was successful, apply the result directly.
-    if (rewrittenText !== null) {
-        // Update the user input with the new text
-        userInput.value = rewrittenText;
-        // Lock it in as the new state
-        lockInCurrentText();
-    }
+    const bodyPayload = { fullText, action };
+
+
+    await streamToElement(bodyPayload, activeElement);
+
+
 }
 
 
