@@ -180,13 +180,7 @@ async function handleQuickActionClick(e) {
     
     const bodyPayload = { fullText, action };
     const rewrittenText = await streamToElement(bodyPayload, activeElement);
-
-    const bodyPayload = { fullText, action };
-
-
     await streamToElement(bodyPayload, activeElement);
-
-
 }
 
 
