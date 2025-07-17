@@ -9,17 +9,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const logContainer = document.getElementById('logContainer');
     const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
-    const quickActionsButton = document.getElementById('quickActionsButton');
     const quickActionsDropdown = document.getElementById('quickActionsDropdown');
 
     // --- CONFIGURATION & STATE ---
     const DEBOUNCE_MS = 350;
-    const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev';
+    const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev'; // Replace with your actual worker URL if different
     let debounceTimer;
     let abortController = new AbortController();
     let apiCallLog = [];
     let currentCallData = {};
-    let lockedTextState = "";
+    let lockedTextState = ""; // Single source of truth for all "locked" content
     const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
     // --- INITIALIZATION ---
@@ -30,82 +29,106 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadLogButton.addEventListener('click', downloadLog);
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
-    
     quickActionsDropdown.addEventListener('click', handleQuickActionClick);
 
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
-
     });
 
+    /**
+     * Sets up the primary input method based on whether the user is on a touch device or desktop.
+     */
     function setupUIForDevice() {
         if (isMobile) {
-            instructionText.textContent = 'Tap a suggestion to accept it.';
+            instructionText.textContent = 'Tap a suggestion to lock it in.';
             aiOutput.addEventListener('click', (e) => {
-                if (e.target.classList.contains('active-paragraph-mobile')) {
-                    e.target.classList.add('tapped');
-                    e.target.addEventListener('animationend', () => e.target.classList.remove('tapped'), { once: true });
-                    acceptAISuggestion();
+                const target = e.target.closest('.active-paragraph-mobile');
+                if (target) {
+                    target.classList.add('tapped');
+                    target.addEventListener('animationend', () => target.classList.remove('tapped'), { once: true });
+                    lockInSuggestion(target);
                 }
             });
         } else {
+            instructionText.innerHTML = 'Write, then press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to lock in.';
             userInput.addEventListener('keydown', handleKeydown);
         }
     }
 
+    /**
+     * Handles the explicit "lock" action on desktop.
+     * @param {KeyboardEvent} e
+     */
     function handleKeydown(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
-            acceptAISuggestion();
+            lockInCurrentText();
         }
     }
 
-    function acceptAISuggestion() {
-        const activeSuggestionEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-        if (!activeSuggestionEl || !activeSuggestionEl.textContent.trim()) return;
-
-        const suggestionText = activeSuggestionEl.textContent;
-        const actionType = activeSuggestionEl.dataset.actionType;
-
+    /**
+     * Locks in the entire current text from the user input field.
+     * This is the main lock mechanism for desktop.
+     */
+    function lockInCurrentText() {
         abortController.abort();
-        abortController = new AbortController();
         clearTimeout(debounceTimer);
 
-        let newFullText;
-        if (actionType === 'rewrite') {
-            newFullText = suggestionText;
-        } else {
-            newFullText = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
-        }
+        lockedTextState = userInput.value.trim();
+        userInput.value = lockedTextState + '\n\n'; // Add visual separation for the next paragraph
 
-        userInput.value = newFullText + '\n\n';
-        const currentActiveEl = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-        if (currentActiveEl) currentActiveEl.remove();
+        renderLockedContent(lockedTextState);
+        
+        // Remove any stale AI suggestion from the view
+        const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
+        if (activeElement) activeElement.remove();
 
         userInput.focus();
         userInput.setSelectionRange(userInput.value.length, userInput.value.length);
     }
+    
+    /**
+     * Locks in the text from a tapped AI suggestion.
+     * This is the main lock mechanism for mobile.
+     * @param {HTMLElement} suggestionElement
+     */
+    function lockInSuggestion(suggestionElement) {
+        if (!suggestionElement || !suggestionElement.textContent.trim()) return;
 
+        const suggestionText = suggestionElement.textContent;
+
+        abortController.abort();
+        clearTimeout(debounceTimer);
+
+        // Append the new suggestion to the previous locked state
+        lockedTextState = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+        userInput.value = lockedTextState + '\n\n';
+
+        renderLockedContent(lockedTextState);
+        suggestionElement.remove(); // Remove the tapped suggestion
+
+        userInput.focus();
+        userInput.setSelectionRange(userInput.value.length, userInput.value.length);
+    }
+    
+    /**
+     * Handles user input by debouncing the call to the AI.
+     */
     function handleUserInput() {
-        const cursorPosition = userInput.selectionStart;
-        if (cursorPosition <= lockedTextState.length && userInput.value !== lockedTextState) {
-            const textBeforeCursor = userInput.value.substring(0, cursorPosition);
-            let paragraphStartIndex = textBeforeCursor.lastIndexOf('\n\n');
-            paragraphStartIndex = (paragraphStartIndex === -1) ? 0 : paragraphStartIndex + 2;
-            lockedTextState = userInput.value.substring(0, paragraphStartIndex).trim();
-        }
         abortController.abort();
         abortController = new AbortController();
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(triggerAI, DEBOUNCE_MS);
     }
 
+    /**
+     * Triggers the call to the AI with the current locked and active text.
+     */
     async function triggerAI() {
-        const fullText = userInput.value;
-        const activeText = fullText.substring(lockedTextState.length).trim();
-        renderLockedContent(lockedTextState);
-
-        if (!activeText && lockedTextState) {
+        // The active text is whatever follows the officially locked text
+        const activeText = userInput.value.substring(lockedTextState.length).trimStart();
+        
+        if (!activeText) {
             const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
             if (activeElement) activeElement.remove();
             return;
@@ -117,41 +140,50 @@ document.addEventListener('DOMContentLoaded', () => {
             activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
             aiOutput.appendChild(activeElement);
         }
-        activeElement.dataset.actionType = 'append';
         activeElement.textContent = '...';
 
-    const bodyPayload = { lockedText: lockedTextState, activeText: activeText };
-    
-    await streamToElement(bodyPayload, activeElement);
-}
+        const bodyPayload = { lockedText: lockedTextState, activeText: activeText };
+        
+        await streamToElement(bodyPayload, activeElement);
+    }
 
+    /**
+     * Handles "Quick Edit" actions like 'make formal' or 'make shorter'.
+     * @param {Event} e
+     */
     async function handleQuickActionClick(e) {
         e.preventDefault();
         if (e.target.tagName !== 'A') return;
 
         const action = e.target.dataset.action;
-        const fullText = userInput.value;
-        if (!fullText.trim()) {
+        const fullText = userInput.value.trim();
+        if (!fullText) {
             alert("There's no text to perform an action on.");
             return;
         }
 
         abortController.abort();
-        abortController = new AbortController();
         clearTimeout(debounceTimer);
 
-        lockedTextState = fullText.trim();
-        renderLockedContent(lockedTextState);
-
+        // For a rewrite, the entire text becomes the context, and the AI pane should be cleared
+        // to show the full rewritten suggestion.
+        renderLockedContent("");
+        
         let activeElement = document.createElement('div');
         activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
-        activeElement.dataset.actionType = 'rewrite';
         aiOutput.appendChild(activeElement);
         activeElement.textContent = `Rewriting to be "${action}"...`;
         
-        await streamToElement({ fullText, action }, activeElement);
+        // This payload tells the backend this is a full rewrite action
+        const bodyPayload = { fullText, action };
+        await streamToElement(bodyPayload, activeElement);
     }
 
+    /**
+     * Streams the OpenAI response to a target UI element.
+     * @param {object} bodyPayload - The data to send to the worker.
+     * @param {HTMLElement} targetElement - The element to stream the response into.
+     */
     async function streamToElement(bodyPayload, targetElement) {
         const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
         currentCallData = { timestamp: new Date(), input: bodyPayload, model };
@@ -173,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
 
+            targetElement.textContent = ""; // Clear "..." before streaming
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
@@ -194,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     targetElement.textContent = fullResponse;
                                 }
                             }
-                        } catch (e) { /* Ignore */ }
+                        } catch (e) { console.error("Error parsing stream data:", e); }
                     }
                 }
             }
@@ -207,8 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Renders the locked paragraphs in the AI output pane.
+     * @param {string} lockedContent
+     */
     function renderLockedContent(lockedContent) {
         aiOutput.innerHTML = '';
+        if (!lockedContent) return;
         const paragraphs = lockedContent.split('\n\n');
         paragraphs.forEach(pText => {
             if (pText.trim()) {
@@ -220,11 +258,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * Logs API call details for the session log modal.
+     * @param {string} response
+     */
     function logApiCall(response) {
         apiCallLog.unshift({ ...currentCallData, output: response });
         currentCallData = {};
     }
 
+    // --- MODAL & LOGGING FUNCTIONS ---
     function openModal() {
         renderLog();
         logModal.style.display = 'block';
@@ -253,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (call.input.action) {
                 inputContent = `---ACTION---\n${call.input.action}\n\n---FULL TEXT SENT---\n${call.input.fullText}`;
             } else {
-                inputContent = `---LOCKED---\n${call.input.lockedText}\n\n---ACTIVE---\n${call.input.activeText}`;
+                inputContent = `---LOCKED---\n${call.input.lockedText || "N/A"}\n\n---ACTIVE---\n${call.input.activeText}`;
             }
             
             entryDiv.innerHTML = `
@@ -279,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.href = url;
         a.download = `kinotype-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
         document.body.appendChild(a);
-        a.click();
+a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
