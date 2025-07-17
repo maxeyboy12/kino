@@ -168,6 +168,7 @@ async function handleQuickActionClick(e) {
     }
 
     abortController.abort();
+	abortController = new AbortController(); 
     clearTimeout(debounceTimer);
 
     renderLockedContent("");
