@@ -209,7 +209,7 @@ input:checked + .slider:before {
 .dropdown-content {
     display: none;
     position: absolute;
-    top: calc(100% + 5px); /* Position below the button with a small gap */
+    top: 100%
     left: 0;
     background-color: var(--pane-background);
     min-width: 160px;

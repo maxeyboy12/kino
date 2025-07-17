@@ -189,6 +189,7 @@ async function handleQuickActionClick(e) {
     }
 }
 
+
     /**
      * Streams the OpenAI response to a target UI element.
      * @param {object} bodyPayload - The data to send to the worker.
