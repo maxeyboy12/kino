@@ -155,7 +155,6 @@ async function handleQuickActionClick(e) {
     e.preventDefault();
     if (e.target.tagName !== 'A') return;
 
-    // This closes the dropdown on mobile after a selection is made
     if (isMobile) {
         e.target.closest('.dropdown').blur();
     }
@@ -179,7 +178,6 @@ async function handleQuickActionClick(e) {
     activeElement.textContent = `Rewriting to be "${action}"...`;
     
     const bodyPayload = { fullText, action };
-    const rewrittenText = await streamToElement(bodyPayload, activeElement);
     await streamToElement(bodyPayload, activeElement);
 }
 
