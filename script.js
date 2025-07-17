@@ -70,23 +70,35 @@ document.addEventListener('DOMContentLoaded', () => {
      * Locks in the entire current text from the user input field.
      * This is the main lock mechanism for desktop.
      */
-    function lockInCurrentText() {
-        abortController.abort();
-        clearTimeout(debounceTimer);
+function lockInCurrentText() {
+    // Find the active AI suggestion in the right pane.
+    const suggestionElement = aiOutput.querySelector('.active-paragraph');
 
-        lockedTextState = userInput.value.trim();
-        userInput.value = lockedTextState + '\n\n'; // Add visual separation for the next paragraph
-
-        renderLockedContent(lockedTextState);
-        
-        // Remove any stale AI suggestion from the view
-        const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
-        if (activeElement) activeElement.remove();
-
-        userInput.focus();
-        userInput.setSelectionRange(userInput.value.length, userInput.value.length);
+    // Do nothing if there's no suggestion to lock in.
+    if (!suggestionElement || !suggestionElement.textContent.trim() || suggestionElement.textContent.trim() === '...') {
+        console.log("Lock-in aborted: No valid suggestion found.");
+        return;
     }
-    
+
+    const suggestionText = suggestionElement.textContent.trim();
+
+    // Stop any current API calls.
+    abortController.abort();
+    clearTimeout(debounceTimer);
+
+    // Append the AI's suggestion to what's already been locked in.
+    lockedTextState = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+
+    // Update the user input (left pane) to reflect the newly accepted text.
+    userInput.value = lockedTextState + '\n\n';
+
+    // Re-render the AI output (right pane) to show the new set of locked paragraphs.
+    renderLockedContent(lockedTextState);
+
+    // Set focus and cursor position for continued writing.
+    userInput.focus();
+    userInput.setSelectionRange(userInput.value.length, userInput.value.length);
+}
     /**
      * Locks in the text from a tapped AI suggestion.
      * This is the main lock mechanism for mobile.
