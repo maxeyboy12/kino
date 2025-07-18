@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
     const quickActionsDropdown = document.getElementById('quickActionsDropdown');
+    const copyButton = document.getElementById('copyAiOutput');
 
     // --- CONFIGURATION & STATE ---
     const DEBOUNCE_MS = 350;
@@ -30,6 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     logButton.addEventListener('click', openModal);
     closeModalButton.addEventListener('click', closeModal);
     quickActionsDropdown.addEventListener('click', handleQuickActionClick);
+    copyButton.addEventListener('click', () => {
+        const outputText = aiOutput.innerText;
+        navigator.clipboard.writeText(outputText).then(() => {
+            showCopiedTooltip();
+        });
+    });
 
     window.addEventListener('click', (event) => {
         if (event.target == logModal) closeModal();
@@ -193,7 +200,6 @@ async function handleQuickActionClick(e) {
     await streamToElement(bodyPayload, activeElement);
 }
 
-
     /**
      * Streams the OpenAI response to a target UI element.
      * @param {object} bodyPayload - The data to send to the worker.
@@ -343,5 +349,31 @@ async function streamToElement(bodyPayload, targetElement) {
 a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    function showCopiedTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'copy-tooltip';
+        tooltip.textContent = 'Copied!';
+        document.body.appendChild(tooltip);
+        const rect = copyButton.getBoundingClientRect();
+        tooltip.style.position = 'absolute';
+        tooltip.style.left = `${rect.left + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top - 30}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+        tooltip.style.padding = '5px 10px';
+        tooltip.style.background = '#333';
+        tooltip.style.color = '#fff';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.fontSize = '12px';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.opacity = '1';
+        setTimeout(() => {
+            tooltip.style.transition = 'opacity 0.3s ease';
+            tooltip.style.opacity = '0';
+            tooltip.addEventListener('transitionend', () => {
+                tooltip.remove();
+});
+        }, 1200);
     }
 });
