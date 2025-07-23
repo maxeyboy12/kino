@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM ELEMENTS ---
     const userInput = document.getElementById('userInput');
     const aiOutput = document.getElementById('aiOutput');
     const logButton = document.getElementById('logButton');
@@ -12,9 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickActionsDropdown = document.getElementById('quickActionsDropdown');
     const copyButton = document.getElementById('copyAiOutput');
 
-    // --- CONFIGURATION & STATE ---
     const DEBOUNCE_MS = 350;
-    const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev'; // Replace with your actual worker URL if different
+    const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev';
     let debounceTimer;
     let abortController = new AbortController();
     let apiCallLog = [];
@@ -22,10 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let lockedTextState = ""; // Single source of truth for all "locked" content
     const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
-    // --- INITIALIZATION ---
     setupUIForDevice();
 
-    // --- EVENT LISTENERS ---
     userInput.addEventListener('input', handleUserInput);
     downloadLogButton.addEventListener('click', downloadLog);
     logButton.addEventListener('click', openModal);
@@ -42,9 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target == logModal) closeModal();
     });
 
-    /**
-     * Sets up the primary input method based on whether the user is on a touch device or desktop.
-     */
     function setupUIForDevice() {
         if (isMobile) {
             instructionText.textContent = 'Tap a suggestion to lock it in.';
@@ -62,10 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Handles the explicit "lock" action on desktop.
-     * @param {KeyboardEvent} e
-     */
     function handleKeydown(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -73,66 +62,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Locks in the entire current text from the user input field.
-     * This is the main lock mechanism for desktop.
-     */
-function lockInCurrentText() {
-    // Find the active AI suggestion in the right pane.
-    const suggestionElement = aiOutput.querySelector('.active-paragraph');
+    function lockInCurrentText() {
+        const suggestionElement = aiOutput.querySelector('.active-paragraph');
+        if (!suggestionElement || !suggestionElement.textContent.trim() || suggestionElement.textContent.trim() === '...') {
+            console.log("Lock-in aborted: No valid suggestion found.");
+            return;
+        }
 
-    // Do nothing if there's no suggestion to lock in.
-    if (!suggestionElement || !suggestionElement.textContent.trim() || suggestionElement.textContent.trim() === '...') {
-        console.log("Lock-in aborted: No valid suggestion found.");
-        return;
+        const suggestionText = suggestionElement.textContent.trim();
+        abortController.abort();
+        clearTimeout(debounceTimer);
+        lockedTextState = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
+        userInput.value = lockedTextState + '\n\n';
+        renderLockedContent(lockedTextState);
+        userInput.focus();
+        userInput.setSelectionRange(userInput.value.length, userInput.value.length);
     }
 
-    const suggestionText = suggestionElement.textContent.trim();
-
-    // Stop any current API calls.
-    abortController.abort();
-    clearTimeout(debounceTimer);
-
-    // Append the AI's suggestion to what's already been locked in.
-    lockedTextState = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
-
-    // Update the user input (left pane) to reflect the newly accepted text.
-    userInput.value = lockedTextState + '\n\n';
-
-    // Re-render the AI output (right pane) to show the new set of locked paragraphs.
-    renderLockedContent(lockedTextState);
-
-    // Set focus and cursor position for continued writing.
-    userInput.focus();
-    userInput.setSelectionRange(userInput.value.length, userInput.value.length);
-}
-    /**
-     * Locks in the text from a tapped AI suggestion.
-     * This is the main lock mechanism for mobile.
-     * @param {HTMLElement} suggestionElement
-     */
     function lockInSuggestion(suggestionElement) {
         if (!suggestionElement || !suggestionElement.textContent.trim()) return;
 
         const suggestionText = suggestionElement.textContent;
-
         abortController.abort();
         clearTimeout(debounceTimer);
-
-        // Append the new suggestion to the previous locked state
         lockedTextState = (lockedTextState ? lockedTextState + '\n\n' : '') + suggestionText;
         userInput.value = lockedTextState + '\n\n';
-
         renderLockedContent(lockedTextState);
-        suggestionElement.remove(); // Remove the tapped suggestion
-
+        suggestionElement.remove();
         userInput.focus();
         userInput.setSelectionRange(userInput.value.length, userInput.value.length);
     }
-    
-    /**
-     * Handles user input by debouncing the call to the AI.
-     */
+
     function handleUserInput() {
         abortController.abort();
         abortController = new AbortController();
@@ -140,13 +100,9 @@ function lockInCurrentText() {
         debounceTimer = setTimeout(triggerAI, DEBOUNCE_MS);
     }
 
-    /**
-     * Triggers the call to the AI with the current locked and active text.
-     */
     async function triggerAI() {
         // The active text is whatever follows the officially locked text
         const activeText = userInput.value.substring(lockedTextState.length).trimStart();
-        
         if (!activeText) {
             const activeElement = aiOutput.querySelector('.active-paragraph, .active-paragraph-mobile');
             if (activeElement) activeElement.remove();
@@ -162,115 +118,102 @@ function lockInCurrentText() {
         activeElement.textContent = '...';
 
         const bodyPayload = { lockedText: lockedTextState, activeText: activeText };
-        
         await streamToElement(bodyPayload, activeElement);
     }
 
-    /**
-     * Handles "Quick Edit" actions like 'make formal' or 'make shorter'.
-     * @param {Event} e
-     */
-async function handleQuickActionClick(e) {
-    e.preventDefault();
-    if (e.target.tagName !== 'A') return;
+    async function handleQuickActionClick(e) {
+        e.preventDefault();
+        if (e.target.tagName !== 'A') return;
 
-    if (isMobile) {
-        e.target.closest('.dropdown').blur();
+        if (isMobile) {
+            e.target.closest('.dropdown').blur();
+        }
+
+        const action = e.target.dataset.action;
+        const fullText = userInput.value.trim();
+        if (!fullText) {
+            alert("There's no text to perform an action on.");
+            return;
+        }
+
+        abortController.abort();
+        abortController = new AbortController();
+        clearTimeout(debounceTimer);
+        renderLockedContent("");
+
+        let activeElement = document.createElement('div');
+        activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
+        aiOutput.appendChild(activeElement);
+        activeElement.textContent = `Rewriting to be "${action}"...`;
+
+        const bodyPayload = { fullText, action };
+        await streamToElement(bodyPayload, activeElement);
     }
 
-    const action = e.target.dataset.action;
-    const fullText = userInput.value.trim();
-    if (!fullText) {
-        alert("There's no text to perform an action on.");
-        return;
-    }
+    async function streamToElement(bodyPayload, targetElement) {
+        const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+        currentCallData = { timestamp: new Date(), input: bodyPayload, model };
+        let fullResponse = "";
 
-    abortController.abort();
-	abortController = new AbortController(); 
-    clearTimeout(debounceTimer);
+        try {
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...bodyPayload, model }),
+                signal: abortController.signal,
+            });
 
-    renderLockedContent("");
-    
-    let activeElement = document.createElement('div');
-    activeElement.className = isMobile ? 'active-paragraph-mobile' : 'active-paragraph';
-    aiOutput.appendChild(activeElement);
-    activeElement.textContent = `Rewriting to be "${action}"...`;
-    
-    const bodyPayload = { fullText, action };
-    await streamToElement(bodyPayload, activeElement);
-}
+            if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
+            if (!response.body) throw new Error("Response body is missing.");
 
-    /**
-     * Streams the OpenAI response to a target UI element.
-     * @param {object} bodyPayload - The data to send to the worker.
-     * @param {HTMLElement} targetElement - The element to stream the response into.
-     */
-// Find and REPLACE the entire streamToElement function with this new version.
-async function streamToElement(bodyPayload, targetElement) {
-    const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
-    currentCallData = { timestamp: new Date(), input: bodyPayload, model };
+            const systemPromptHeader = response.headers.get('X-System-Prompt');
+            currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-    let fullResponse = "";
-    try {
-        const response = await fetch(WORKER_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...bodyPayload, model }),
-            signal: abortController.signal,
-        });
+            targetElement.textContent = ""; // Clear "..." before streaming
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
 
-        if (!response.ok) throw new Error(`Worker error: ${response.statusText}`);
-        if (!response.body) throw new Error("Response body is missing.");
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n\n');
 
-        const systemPromptHeader = response.headers.get('X-System-Prompt');
-        currentCallData.systemPrompt = systemPromptHeader ? decodeURIComponent(systemPromptHeader) : 'N/A';
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.substring(6);
+                        if (data.trim() === '[DONE]') continue;
 
-        targetElement.textContent = ""; // Clear "..." before streaming
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n\n');
-
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.substring(6);
-                    if (data.trim() === '[DONE]') continue;
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.usage) {
-                            currentCallData.usage = json.usage;
-                        } else {
-                            const token = json.choices[0]?.delta?.content || "";
-                            if (token) {
-                                fullResponse += token;
-                                targetElement.textContent = fullResponse;
+                        try {
+                            const json = JSON.parse(data);
+                            if (json.usage) {
+                                currentCallData.usage = json.usage;
+                            } else {
+                                const token = json.choices[0]?.delta?.content || "";
+                                if (token) {
+                                    fullResponse += token;
+                                    targetElement.textContent = fullResponse;
+                                }
                             }
-                        }
-                    } catch (e) { console.error("Error parsing stream data:", e); }
+                        } catch (e) { console.error("Error parsing stream data:", e); }
+                    }
                 }
             }
+            logApiCall(fullResponse);
+            return fullResponse;
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Streaming failed:', error);
+                targetElement.textContent = "Error connecting to the assistant.";
+            }
+            return null;
         }
-        logApiCall(fullResponse);
-        return fullResponse; // <-- ADD THIS LINE to return the final text
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error('Streaming failed:', error);
-            targetElement.textContent = "Error connecting to the assistant.";
-        }
-        return null; // <-- ADD THIS LINE to return null on error
     }
-}
 
-    /**
-     * Renders the locked paragraphs in the AI output pane.
-     * @param {string} lockedContent
-     */
     function renderLockedContent(lockedContent) {
         aiOutput.innerHTML = '';
         if (!lockedContent) return;
+
         const paragraphs = lockedContent.split('\n\n');
         paragraphs.forEach(pText => {
             if (pText.trim()) {
@@ -282,16 +225,11 @@ async function streamToElement(bodyPayload, targetElement) {
         });
     }
 
-    /**
-     * Logs API call details for the session log modal.
-     * @param {string} response
-     */
     function logApiCall(response) {
         apiCallLog.unshift({ ...currentCallData, output: response });
         currentCallData = {};
     }
 
-    // --- MODAL & LOGGING FUNCTIONS ---
     function openModal() {
         renderLog();
         logModal.style.display = 'block';
@@ -315,14 +253,14 @@ async function streamToElement(bodyPayload, targetElement) {
             const entryDiv = document.createElement('div');
             entryDiv.className = 'log-entry';
             const usageText = call.usage ? `Prompt: ${call.usage.prompt_tokens} | Completion: ${call.usage.completion_tokens}` : 'N/A';
-            
             let inputContent = '';
+
             if (call.input.action) {
                 inputContent = `---ACTION---\n${call.input.action}\n\n---FULL TEXT SENT---\n${call.input.fullText}`;
             } else {
                 inputContent = `---LOCKED---\n${call.input.lockedText || "N/A"}\n\n---ACTIVE---\n${call.input.activeText}`;
             }
-            
+
             entryDiv.innerHTML = `
                 <div class="log-entry-header">
                     <span><strong>Call #${totalCalls - index}</strong> | ${call.timestamp.toLocaleTimeString()}</span>
@@ -339,6 +277,7 @@ async function streamToElement(bodyPayload, targetElement) {
 
     function downloadLog() {
         if (apiCallLog.length === 0) return alert("No log data to download.");
+
         const logData = JSON.stringify(apiCallLog, null, 2);
         const blob = new Blob([logData], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -346,7 +285,7 @@ async function streamToElement(bodyPayload, targetElement) {
         a.href = url;
         a.download = `kinotype-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
         document.body.appendChild(a);
-a.click();
+        a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
@@ -356,6 +295,7 @@ a.click();
         tooltip.className = 'copy-tooltip';
         tooltip.textContent = 'Copied!';
         document.body.appendChild(tooltip);
+
         const rect = copyButton.getBoundingClientRect();
         tooltip.style.position = 'absolute';
         tooltip.style.left = `${rect.left + rect.width / 2}px`;
@@ -368,12 +308,13 @@ a.click();
         tooltip.style.fontSize = '12px';
         tooltip.style.pointerEvents = 'none';
         tooltip.style.opacity = '1';
+
         setTimeout(() => {
             tooltip.style.transition = 'opacity 0.3s ease';
             tooltip.style.opacity = '0';
             tooltip.addEventListener('transitionend', () => {
                 tooltip.remove();
-});
+            });
         }, 1200);
     }
 });
