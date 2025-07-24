@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const logModal = document.getElementById('logModal');
     const closeModalButton = document.querySelector('.close-button');
     const logContainer = document.getElementById('logContainer');
-    const modelSwitch = document.getElementById('modelSwitch');
     const downloadLogButton = document.getElementById('downloadLogButton');
     const quickActionsDropdown = document.getElementById('quickActionsDropdown');
     const copyButton = document.getElementById('copyAiOutput');
@@ -151,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function streamToElement(bodyPayload, targetElement) {
-        const model = modelSwitch.checked ? 'gpt-4o' : 'gpt-4o-mini';
+        const model = 'gpt-4o'; // Always use gpt-4o
         currentCallData = { timestamp: new Date(), input: bodyPayload, model };
         let fullResponse = "";
 
@@ -285,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.href = url;
         a.download = `kinotype-log-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
         document.body.appendChild(a);
-        a.click();
+a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
