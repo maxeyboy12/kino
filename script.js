@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickActionsDropdown = document.getElementById('quickActionsDropdown');
     const copyButton = document.getElementById('copyAiOutput');
 
-    const DEBOUNCE_MS = 350;
+    const DEBOUNCE_MS = 150;
     const WORKER_URL = 'https://lnkino-api.maxzitek8.workers.dev';
     let debounceTimer;
     let abortController = new AbortController();
